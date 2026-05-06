@@ -111,10 +111,12 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
 
     if let maxLRA = maxLoudnessRangeLU {
       let lra = String(format: "%.1f", maxLRA)
-      return "Integrated loudness: \(target) \(integratedUnit) (+/-\(tolerance) LU), true peak: <= \(tp) dBTP, loudness range: <= \(lra) LU."
+      return
+        "Integrated loudness: \(target) \(integratedUnit) (+/-\(tolerance) LU), true peak: <= \(tp) dBTP, loudness range: <= \(lra) LU."
     }
 
-    return "Integrated loudness: \(target) \(integratedUnit) (+/-\(tolerance) LU), true peak: <= \(tp) dBTP."
+    return
+      "Integrated loudness: \(target) \(integratedUnit) (+/-\(tolerance) LU), true peak: <= \(tp) dBTP."
   }
 }
 
@@ -249,7 +251,9 @@ final class LoudnessAnalyzer {
     let pattern = "Duration: (\\d{2}):(\\d{2}):(\\d{2})\\.(\\d{2})"
     guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
     let range = NSRange(location: 0, length: outputChunk.utf16.count)
-    guard let match = regex.firstMatch(in: outputChunk, options: [], range: range) else { return nil }
+    guard let match = regex.firstMatch(in: outputChunk, options: [], range: range) else {
+      return nil
+    }
 
     let ns = outputChunk as NSString
     let hours = Double(ns.substring(with: match.range(at: 1))) ?? 0

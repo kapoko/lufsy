@@ -66,7 +66,9 @@ final class DropViewModel: ObservableObject {
 
   func handleDroppedURLs(_ urls: [URL]) {
     let validation = AudioFileValidator.filterSupportedMediaFiles(from: urls)
-    let uniqueSupported = Array(Set(validation.supported)).sorted { $0.lastPathComponent < $1.lastPathComponent }
+    let uniqueSupported = Array(Set(validation.supported)).sorted {
+      $0.lastPathComponent < $1.lastPathComponent
+    }
 
     if !validation.unsupported.isEmpty {
       let names = validation.unsupported.map(\.lastPathComponent).prefix(6)
@@ -75,7 +77,8 @@ final class DropViewModel: ObservableObject {
     }
 
     let existingURLs = Set(files.map(\.url))
-    let newRows = uniqueSupported
+    let newRows =
+      uniqueSupported
       .filter { !existingURLs.contains($0) }
       .map { AnalyzedFile(url: $0, state: .queued, metrics: nil, startedAt: nil, progress: nil) }
 

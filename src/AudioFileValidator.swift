@@ -2,7 +2,8 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum AudioFileValidator {
-  static func filterSupportedMediaFiles(from urls: [URL]) -> (supported: [URL], unsupported: [URL]) {
+  static func filterSupportedMediaFiles(from urls: [URL]) -> (supported: [URL], unsupported: [URL])
+  {
     var supported: [URL] = []
     var unsupported: [URL] = []
 
