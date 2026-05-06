@@ -2,16 +2,22 @@
 import PackageDescription
 
 let package = Package(
-  name: "ebur128",
+  name: "lufsy",
   platforms: [
     .macOS(.v13)
   ],
   products: [
-    .executable(name: "EBUR128", targets: ["EBUR128"])
+    .executable(name: "Lufsy", targets: ["Lufsy"])
+  ],
+  dependencies: [
+    .package(url: "https://github.com/kapoko/sparkle-updater", branch: "main")
   ],
   targets: [
     .executableTarget(
-      name: "EBUR128",
+      name: "Lufsy",
+      dependencies: [
+        .product(name: "SparkleUpdater", package: "sparkle-updater")
+      ],
       path: "src"
     )
   ]

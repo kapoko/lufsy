@@ -1,5 +1,23 @@
 import AppKit
+import SparkleUpdater
 import SwiftUI
+
+@MainActor
+enum AppDependencies {
+  static let updateCoordinator = UpdateCoordinator(
+    configuration: .init(
+      feedURLStringProvider: {
+        #if arch(arm64)
+          return "https://example.com/appcast-arm64.xml"
+        #else
+          return "https://example.com/appcast-x86_64.xml"
+        #endif
+      },
+      betaUpdatesEnabledProvider: {
+        UserDefaults.standard.bool(forKey: UpdateSettings.defaultsKeys().betaUpdatesEnabled)
+      }
+    ))
+}
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,7 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
+    AppDependencies.updateCoordinator.initializeUpdater()
     showMainWindow()
+    AppDependencies.updateCoordinator.performStartupCheckIfNeeded()
   }
 
   func application(_ application: NSApplication, open urls: [URL]) {
@@ -44,12 +64,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct EBUR128App: App {
+struct LufsyApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @StateObject private var updateCoordinator = AppDependencies.updateCoordinator
 
   var body: some Scene {
     Settings {
-      EmptyView()
+      UpdatesSettingsView(updateCoordinator: updateCoordinator)
+    }
+    .commands {
+      CommandGroup(after: .appInfo) {
+        Button("Check for Updates...") {
+          AppDependencies.updateCoordinator.checkForUpdates()
+        }
+      }
     }
   }
 }
