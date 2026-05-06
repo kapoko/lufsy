@@ -71,6 +71,7 @@ struct LufsyApp: App {
   var body: some Scene {
     Settings {
       UpdatesSettingsView(updateCoordinator: updateCoordinator)
+        .frame(width: 480, height: 250)
     }
     .commands {
       CommandGroup(after: .appInfo) {
