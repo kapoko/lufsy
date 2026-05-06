@@ -1,0 +1,7 @@
+.build/
+.DS_Store
+Resources/*ffmpeg*
+*.wav
+*.mp4
+dist/
+Package.resolved
