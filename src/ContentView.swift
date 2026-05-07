@@ -50,12 +50,13 @@ struct ContentView: View {
         Button {
           showsNormInfo = true
         } label: {
-          Image(systemName: "info.circle")
+          Label("About loudness norms", systemImage: "info.circle")
             .imageScale(.medium)
             .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
+        .labelStyle(.iconOnly)
         .help("About loudness norms")
+        .accessibilityLabel("About loudness norms")
 
         Picker("Loudness Norm", selection: $viewModel.selectedProfile) {
           ForEach(LoudnessProfile.allCases) { profile in

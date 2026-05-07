@@ -41,6 +41,7 @@ struct AnalyzedFile: Identifiable, Equatable {
 @MainActor
 final class DropViewModel: ObservableObject {
   static let shared = DropViewModel()
+  private static let selectedProfileDefaultsKey = "selectedLoudnessProfile"
 
   @Published var files: [AnalyzedFile] = []
   @Published var isDragHovering = false
@@ -48,12 +49,21 @@ final class DropViewModel: ObservableObject {
   @Published var unsupportedMessage = ""
   @Published var selectedProfile: LoudnessProfile = .ebuR128 {
     didSet {
+      UserDefaults.standard.set(selectedProfile.rawValue, forKey: Self.selectedProfileDefaultsKey)
       reevaluateCompletedFiles()
     }
   }
 
   private let maxConcurrentAnalyses = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
   private let analyzer = LoudnessAnalyzer()
+
+  private init() {
+    if let rawValue = UserDefaults.standard.string(forKey: Self.selectedProfileDefaultsKey),
+      let storedProfile = LoudnessProfile(rawValue: rawValue)
+    {
+      selectedProfile = storedProfile
+    }
+  }
 
   func handleDrop(providers: [NSItemProvider]) -> Bool {
     let fileProviders = providers.filter {
