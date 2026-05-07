@@ -73,19 +73,16 @@ dmg-x86_64 dmg-arm64: dmg-%: bundle-%
 		tmp_dmg_dir="$$tmpdir/dmg"; \
 		generated_dmg="$$tmp_dmg_dir/Lufsy.dmg"; \
 		final_dmg="$(DMG_OUTPUT_DIR)/$(DMG_NAME)-darwin-$*-$(APP_VERSION).dmg"; \
-		identity_arg=""; \
-		if [ -n "$$MACOS_SIGNING_IDENTITY" ]; then \
-			identity_arg="--identity=$$MACOS_SIGNING_IDENTITY"; \
-		fi; \
 		rm -rf "$$staged_app"; \
 		mkdir -p "$$tmp_dmg_dir"; \
 		ditto "$$app_bundle" "$$staged_app"; \
 		rm -rf "$$final_dmg"; \
+		if [ -n "$$MACOS_SIGNING_IDENTITY" ]; then set -- --identity "$$MACOS_SIGNING_IDENTITY"; else set --; fi; \
 		create-dmg \
 			--overwrite \
 			--dmg-title="Lufsy" \
 			--no-version-in-filename \
-			$$identity_arg \
+			"$$@" \
 			"$$staged_app" \
 			"$$tmp_dmg_dir"; \
 		if [ ! -f "$$generated_dmg" ]; then \
