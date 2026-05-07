@@ -88,6 +88,11 @@ struct ContentView: View {
     .onReceive(timer) { tick in
       now = tick
     }
+    .onDeleteCommand {
+      guard !selection.isEmpty else { return }
+      viewModel.removeFiles(withIDs: selection)
+      selection.removeAll()
+    }
   }
 
   private func openFiles() {
