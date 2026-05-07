@@ -14,8 +14,28 @@ struct AnalyzedFile: Identifiable, Equatable {
   let url: URL
   var state: AnalysisState
   var metrics: LoudnessMetrics?
+  var sampleRateHz: Int?
+  var bitDepth: Int?
   var startedAt: Date?
   var progress: Double?
+
+  var fileName: String { url.lastPathComponent }
+  var integratedSort: Double { metrics?.integratedLUFS ?? -.infinity }
+  var truePeakSort: Double { metrics?.truePeakDBTP ?? -.infinity }
+  var sampleRateSort: Int { sampleRateHz ?? 0 }
+  var bitDepthSort: Int { bitDepth ?? 0 }
+  var statusSort: Int {
+    switch state {
+    case .queued:
+      return 0
+    case .analyzing:
+      return 1
+    case .failed:
+      return 2
+    case .passed:
+      return 3
+    }
+  }
 }
 
 @MainActor
@@ -80,7 +100,17 @@ final class DropViewModel: ObservableObject {
     let newRows =
       uniqueSupported
       .filter { !existingURLs.contains($0) }
-      .map { AnalyzedFile(url: $0, state: .queued, metrics: nil, startedAt: nil, progress: nil) }
+      .map { url in
+        AnalyzedFile(
+          url: url,
+          state: .queued,
+          metrics: nil,
+          sampleRateHz: nil,
+          bitDepth: nil,
+          startedAt: nil,
+          progress: nil
+        )
+      }
 
     guard !newRows.isEmpty else {
       return
@@ -106,7 +136,7 @@ final class DropViewModel: ObservableObject {
       files[index].progress = nil
     }
 
-    await withTaskGroup(of: (UUID, LoudnessMetrics?, Bool).self) { group in
+    await withTaskGroup(of: (UUID, LoudnessMetrics?, Int?, Int?, Bool).self) { group in
       let semaphore = AsyncSemaphore(value: maxConcurrentAnalyses)
 
       let pendingFiles = files.filter { ids.contains($0.id) }
@@ -122,17 +152,19 @@ final class DropViewModel: ObservableObject {
               }
             }
             await semaphore.signal()
-            return (file.id, result.metrics, false)
+            return (file.id, result.metrics, result.sampleRateHz, result.bitDepth, false)
           } catch {
             await semaphore.signal()
-            return (file.id, nil, true)
+            return (file.id, nil, nil, nil, true)
           }
         }
       }
 
-      for await (id, metrics, failed) in group {
+      for await (id, metrics, sampleRateHz, bitDepth, failed) in group {
         if let idx = files.firstIndex(where: { $0.id == id }) {
           files[idx].metrics = metrics
+          files[idx].sampleRateHz = sampleRateHz
+          files[idx].bitDepth = bitDepth
           files[idx].progress = nil
           if failed {
             files[idx].state = .failed("analysis failed")

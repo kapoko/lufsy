@@ -122,6 +122,8 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
 
 struct LoudnessAnalysisResult: Equatable {
   let metrics: LoudnessMetrics
+  let sampleRateHz: Int?
+  let bitDepth: Int?
 }
 
 enum LoudnessAnalyzerError: Error {
@@ -201,7 +203,107 @@ final class LoudnessAnalyzer {
     outputLock.unlock()
 
     let metrics = try parseMetrics(from: collectedOutput)
-    return LoudnessAnalysisResult(metrics: metrics)
+    let details = try? probeAudioDetails(url: url)
+    return LoudnessAnalysisResult(
+      metrics: metrics, sampleRateHz: details?.sampleRateHz, bitDepth: details?.bitDepth)
+  }
+
+  private func probeAudioDetails(url: URL) throws -> (sampleRateHz: Int?, bitDepth: Int?) {
+    let ffmpegPath = resolveFFmpegPath()
+    guard FileManager.default.fileExists(atPath: ffmpegPath) else {
+      throw LoudnessAnalyzerError.ffmpegNotFound
+    }
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: ffmpegPath)
+    process.arguments = [
+      "-hide_banner",
+      "-nostdin",
+      "-i", url.path,
+      "-vn",
+      "-f", "null",
+      "-",
+    ]
+
+    let stderrPipe = Pipe()
+    process.standardOutput = Pipe()
+    process.standardError = stderrPipe
+
+    do {
+      try process.run()
+      process.waitUntilExit()
+    } catch {
+      throw LoudnessAnalyzerError.executionFailed
+    }
+
+    let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+    let output = String(data: data, encoding: .utf8) ?? ""
+    let details = parseAudioDetails(from: output)
+    return details
+  }
+
+  private func parseAudioDetails(from output: String) -> (sampleRateHz: Int?, bitDepth: Int?) {
+    let audioLine = firstAudioStreamLine(in: output)
+    let sampleRate = parseSampleRateHz(from: audioLine)
+    let bitDepth = parseBitDepth(from: audioLine)
+    return (sampleRate, bitDepth)
+  }
+
+  private func firstAudioStreamLine(in output: String) -> String? {
+    let lines = output.components(separatedBy: .newlines)
+    return lines.first { $0.contains("Audio:") }
+  }
+
+  private func parseSampleRateHz(from line: String?) -> Int? {
+    guard let line else { return nil }
+    let pattern = "([0-9]{4,6})\\s*Hz"
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(location: 0, length: line.utf16.count)
+    guard let match = regex.firstMatch(in: line, options: [], range: range),
+      match.numberOfRanges > 1
+    else {
+      return nil
+    }
+
+    let ns = line as NSString
+    let value = ns.substring(with: match.range(at: 1))
+    return Int(value)
+  }
+
+  private func parseBitDepth(from line: String?) -> Int? {
+    guard let line else { return nil }
+    let lowercased = line.lowercased()
+
+    let tokens: [(String, Int)] = [
+      ("s8", 8),
+      ("u8", 8),
+      ("s16", 16),
+      ("s24", 24),
+      ("s32", 32),
+      ("flt", 32),
+      ("dbl", 64),
+    ]
+
+    for (token, depth) in tokens where lowercased.contains(token) {
+      return depth
+    }
+
+    let pattern = "([0-9]{1,2})\\s*-?bit"
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(location: 0, length: lowercased.utf16.count)
+    guard let match = regex.firstMatch(in: lowercased, options: [], range: range),
+      match.numberOfRanges > 1
+    else {
+      return nil
+    }
+
+    let ns = lowercased as NSString
+    let raw = ns.substring(with: match.range(at: 1))
+    if let depth = Int(raw), depth > 0 {
+      return depth
+    }
+
+    return nil
   }
 
   private func parseMetrics(from output: String) throws -> LoudnessMetrics {

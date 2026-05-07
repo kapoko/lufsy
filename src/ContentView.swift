@@ -2,11 +2,37 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+extension TableColumnBuilder {
+  static func buildEither<Column>(first column: Column) -> Column
+  where
+    RowValue == Column.TableRowValue,
+    Sort == Column.TableColumnSortComparator,
+    Column: TableColumnContent
+  {
+    column
+  }
+
+  static func buildEither<Column>(second column: Column) -> Column
+  where
+    RowValue == Column.TableRowValue,
+    Sort == Column.TableColumnSortComparator,
+    Column: TableColumnContent
+  {
+    column
+  }
+}
+
 struct ContentView: View {
   @ObservedObject private var viewModel = DropViewModel.shared
   @State private var selection = Set<AnalyzedFile.ID>()
   @State private var showsNormInfo = false
   @State private var now = Date()
+  @State private var tableLayoutResetToken = UUID()
+  @State private var sortOrder = [KeyPathComparator(\AnalyzedFile.fileName, order: .forward)]
+  @AppStorage("showsLoudnessColumn") private var showsLoudnessColumn = true
+  @AppStorage("showsTruePeakColumn") private var showsTruePeakColumn = true
+  @AppStorage("showsSampleRateColumn") private var showsSampleRateColumn = false
+  @AppStorage("showsBitDepthColumn") private var showsBitDepthColumn = false
   private let timer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
 
   var body: some View {
@@ -87,52 +113,133 @@ struct ContentView: View {
           Spacer(minLength: 20)
         }
       } else {
-        Table(viewModel.files, selection: $selection) {
-          TableColumn("File") { file in
-            Text(file.url.lastPathComponent)
-              .lineLimit(1)
-              .truncationMode(.middle)
-              .contextMenu {
-                Button("Remove") {
-                  viewModel.removeFiles(withIDs: Set([file.id]))
-                }
+        tableView
+      }
+    }
+  }
 
-                if !selection.isEmpty {
-                  Button("Remove Selected") {
-                    viewModel.removeFiles(withIDs: selection)
-                  }
-                }
-              }
-          }
+  private var tableView: some View {
+    Table(sortedFiles, selection: $selection, sortOrder: $sortOrder) {
+      fileColumn
 
-          TableColumn("Loudness") { file in
-            Text(valueText(file.metrics?.integratedLUFS, suffix: " LUFS"))
-              .lineLimit(1)
-              .monospacedDigit()
-          }
-          .width(min: 80, ideal: 90, max: 100)
+      if showsLoudnessColumn {
+        loudnessColumn
+      }
 
-          TableColumn("True Peak") { file in
-            Text(valueText(file.metrics?.truePeakDBTP, suffix: " dBTP"))
-              .lineLimit(1)
-              .monospacedDigit()
-          }
-          .width(min: 90, ideal: 110, max: 130)
+      if showsTruePeakColumn {
+        truePeakColumn
+      }
 
-          TableColumn(viewModel.selectedProfile.columnTitle) { file in
-            statusView(file)
-          }
-          .width(min: 80, ideal: 90, max: 100)
+      if showsSampleRateColumn {
+        sampleRateColumn
+      }
+
+      if showsBitDepthColumn {
+        bitDepthColumn
+      }
+
+      statusColumn
+    }
+    .contextMenu {
+      columnToggles
+    }
+    .contextMenu(forSelectionType: AnalyzedFile.ID.self) { selectedIDs in
+      if selectedIDs.count == 1, let singleID = selectedIDs.first {
+        Button("Remove") {
+          viewModel.removeFiles(withIDs: [singleID])
         }
-        .contextMenu {
-          if !selection.isEmpty {
-            Button("Remove Selected") {
-              viewModel.removeFiles(withIDs: selection)
-            }
-          }
+      }
+
+      if !selectedIDs.isEmpty {
+        Button("Remove Selected") {
+          viewModel.removeFiles(withIDs: selectedIDs)
         }
       }
     }
+    .id(tableLayoutResetToken)
+  }
+
+  private var columnToggles: some View {
+    Group {
+      Toggle(isOn: .constant(true)) { Text("File") }
+        .disabled(true)
+      Toggle(isOn: $showsLoudnessColumn) { Text("Loudness") }
+      Toggle(isOn: $showsTruePeakColumn) { Text("True Peak") }
+      Toggle(isOn: $showsSampleRateColumn) { Text("Sample Rate") }
+      Toggle(isOn: $showsBitDepthColumn) { Text("Bit Depth") }
+      Toggle(isOn: .constant(true)) { Text(viewModel.selectedProfile.columnTitle) }
+        .disabled(true)
+
+      Divider()
+
+      Button("Reset to Default") {
+        resetColumnVisibilityDefaults()
+      }
+    }
+  }
+
+  private func resetColumnVisibilityDefaults() {
+    showsLoudnessColumn = true
+    showsTruePeakColumn = true
+    showsSampleRateColumn = false
+    showsBitDepthColumn = false
+    tableLayoutResetToken = UUID()
+  }
+
+  private var fileColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>> {
+    TableColumn("File", value: \.fileName) { file in
+      Text(file.url.lastPathComponent)
+        .lineLimit(1)
+        .truncationMode(.middle)
+    }
+  }
+
+  private var loudnessColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
+  {
+    TableColumn("Loudness", value: \.integratedSort) { file in
+      Text(valueText(file.metrics?.integratedLUFS, suffix: " LUFS"))
+        .lineLimit(1)
+        .monospacedDigit()
+    }
+    .width(min: 80, ideal: 90, max: 100)
+  }
+
+  private var truePeakColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
+  {
+    TableColumn("True Peak", value: \.truePeakSort) { file in
+      Text(valueText(file.metrics?.truePeakDBTP, suffix: " dBTP"))
+        .lineLimit(1)
+        .monospacedDigit()
+    }
+    .width(min: 90, ideal: 110, max: 130)
+  }
+
+  private var sampleRateColumn:
+    some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
+  {
+    TableColumn("Sample Rate", value: \.sampleRateSort) { file in
+      Text(sampleRateText(file.sampleRateHz))
+        .lineLimit(1)
+        .monospacedDigit()
+    }
+    .width(min: 80, ideal: 90, max: 110)
+  }
+
+  private var bitDepthColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
+  {
+    TableColumn("Bit Depth", value: \.bitDepthSort) { file in
+      Text(bitDepthText(file.bitDepth))
+        .lineLimit(1)
+        .monospacedDigit()
+    }
+    .width(min: 80, ideal: 90, max: 110)
+  }
+
+  private var statusColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>> {
+    TableColumn(viewModel.selectedProfile.columnTitle, value: \.statusSort) { file in
+      statusView(file)
+    }
+    .width(min: 80, ideal: 90, max: 100)
   }
 
   @ViewBuilder
@@ -157,6 +264,20 @@ struct ContentView: View {
   private func valueText(_ value: Double?, suffix: String) -> String {
     guard let value else { return "--" }
     return String(format: "%.1f%@", value, suffix)
+  }
+
+  private func sampleRateText(_ value: Int?) -> String {
+    guard let value else { return "--" }
+    return String(format: "%.3f kHz", Double(value) / 1000.0)
+  }
+
+  private func bitDepthText(_ value: Int?) -> String {
+    guard let value else { return "--" }
+    return "\(value)-bit"
+  }
+
+  private var sortedFiles: [AnalyzedFile] {
+    viewModel.files.sorted(using: sortOrder)
   }
 }
 
