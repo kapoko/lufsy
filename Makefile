@@ -9,7 +9,6 @@ APP_VERSION := $(shell tr -d '[:space:]' < VERSION)
 APP_BUILD_VERSION := $(shell tr -d '[:space:]' < VERSION | sed -E 's/-beta\.([0-9]+)$$/b\1/; s/-.*$$//')
 APPCAST_URL_ARM64 ?= https://lufsy.github.io/appcast-arm64.xml
 APPCAST_URL_X86_64 ?= https://lufsy.github.io/appcast-x86_64.xml
-DMG_OUTPUT_DIR := $(DIST_DIR)/dmg
 
 # Default target
 all: setup build
@@ -66,13 +65,13 @@ dmg: dmg-x86_64 dmg-arm64
 
 dmg-x86_64 dmg-arm64: dmg-%: bundle-%
 	@echo "Creating $* DMG..."
-	@mkdir -p "$(DMG_OUTPUT_DIR)"
+	@mkdir -p "$(DIST_DIR)"
 	@app_bundle="$(APP_BUNDLE_DIR)/Lufsy-$*.app"; \
 		tmpdir="$$(mktemp -d)"; \
 		staged_app="$$tmpdir/Lufsy.app"; \
 		tmp_dmg_dir="$$tmpdir/dmg"; \
 		generated_dmg="$$tmp_dmg_dir/Lufsy.dmg"; \
-		final_dmg="$(DMG_OUTPUT_DIR)/$(DMG_NAME)-darwin-$*-$(APP_VERSION).dmg"; \
+		final_dmg="$(DIST_DIR)/$(DMG_NAME)-darwin-$*-$(APP_VERSION).dmg"; \
 		rm -rf "$$staged_app"; \
 		mkdir -p "$$tmp_dmg_dir"; \
 		ditto "$$app_bundle" "$$staged_app"; \
