@@ -32,4 +32,6 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build and package DMG
-        run: make dmg-${{ matrix.arch }}
+        run: |
+          npm install --global create-dmg
+          make dmg-${{ matrix.arch }}
