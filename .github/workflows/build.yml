@@ -31,5 +31,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Build
-        run: swift build
+      - name: Build and package DMG
+        run: make dmg-${{ matrix.arch }}

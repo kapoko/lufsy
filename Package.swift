@@ -10,7 +10,7 @@ let package = Package(
     .executable(name: "Lufsy", targets: ["Lufsy"])
   ],
   dependencies: [
-    .package(url: "https://github.com/kapoko/sparkle-updater", branch: "main")
+    .package(url: "https://github.com/kapoko/sparkle-updater", from: "0.1.0")
   ],
   targets: [
     .executableTarget(

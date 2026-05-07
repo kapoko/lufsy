@@ -274,14 +274,17 @@ final class LoudnessAnalyzer {
     guard let line else { return nil }
     let lowercased = line.lowercased()
 
+    let floatingPointFormats = ["flt", "fltp", "dbl", "dblp"]
+    if floatingPointFormats.contains(where: { lowercased.contains($0) }) {
+      return nil
+    }
+
     let tokens: [(String, Int)] = [
       ("s8", 8),
       ("u8", 8),
       ("s16", 16),
       ("s24", 24),
       ("s32", 32),
-      ("flt", 32),
-      ("dbl", 64),
     ]
 
     for (token, depth) in tokens where lowercased.contains(token) {
