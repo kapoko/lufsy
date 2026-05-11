@@ -1,4 +1,4 @@
-baseURL = "https://example.com/"
+baseURL = "https://lufsy.koman.app/"
 defaultContentLanguage = "en"
 title = "Lufsy - Loudness Broadcast Norm Analyser"
 disableKinds = ["taxonomy", "term"]

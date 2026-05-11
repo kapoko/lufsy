@@ -170,3 +170,14 @@ jobs:
             dist-appcast/dmg-arm64/appcast-arm64.xml
             dist-appcast/dmg-x86_64/appcast-x86_64.xml
           if-no-files-found: error
+
+  site:
+    needs:
+      - release
+      - appcast
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/site.yml
+    secrets: inherit
