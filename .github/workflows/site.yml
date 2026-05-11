@@ -2,6 +2,7 @@ name: Site
 
 env:
   IS_RELEASE: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') }}
+  SITE_RELEASE_CHANNEL: beta
 
 permissions:
   contents: read
@@ -53,7 +54,14 @@ jobs:
       - name: Build
         run: |
           set -euo pipefail
-          HUGO_APP_VERSION="$(tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || true)"; [ -n "$tag" ] && [ "$tag" != "null" ] && printf '%s' "${tag#v}" || printf '0.0.0')" hugo --minify
+          HUGO_APP_VERSION="$({
+            if [ "${SITE_RELEASE_CHANNEL}" = "stable" ]; then
+              tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
+            else
+              tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || true)"
+            fi
+            [ -n "$tag" ] && [ "$tag" != "null" ] && printf '%s' "${tag#v}" || printf '0.0.0'
+          })" hugo --minify
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
