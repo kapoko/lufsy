@@ -1,6 +1,7 @@
 # Lufsy
 
 [![](https://github.com/kapoko/lufsy/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/kapoko/lufsy/actions/workflows/build.yml)
+[![](https://github.com/kapoko/lufsy/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/kapoko/lufsy/actions/workflows/release.yml)
 
 Loudness Broadcast Norm Analyser.
 
