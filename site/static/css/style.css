@@ -1,0 +1,300 @@
+:root {
+  --bg: #090f1a;
+  --bg-soft: #101a2b;
+  --text: #f4f7ff;
+  --muted: #c0c9d9;
+  --primary: #29d3a2;
+  --primary-hover: #20bc90;
+  --secondary: #2d78ff;
+  --link: #7eb3ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Satoshi", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 17px;
+  color: var(--text);
+  background:
+    radial-gradient(1000px 650px at -5% -20%, #1f2e4f 20%, transparent 60%),
+    radial-gradient(900px 550px at 100% 0%, #153a42 15%, transparent 58%),
+    var(--bg);
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 3.4rem 1.25rem 3.8rem;
+}
+
+.hero {
+  margin-bottom: 1.7rem;
+  text-align: center;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0 auto 0.9rem;
+}
+
+.logo {
+  width: 144px;
+  height: 144px;
+  display: block;
+  filter: drop-shadow(0 10px 20px rgba(41, 211, 162, 0.25));
+}
+
+h1,
+h2 {
+  margin: 0 0 0.6rem;
+  line-height: 1.2;
+}
+
+.brand-name {
+  margin: 0;
+  line-height: 1;
+  font-family: "Sacramento", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: clamp(3.8rem, 5.8vw, 7.8rem);
+  font-weight: 400;
+  font-style: normal;
+  color: #f6fbff;
+}
+
+.subtitle {
+  margin: 0 0 1.2rem;
+  font-size: clamp(1.35rem, 2.3vw, 1.78rem);
+  font-weight: 700;
+  color: #dce7fb;
+}
+
+.lead,
+p,
+li {
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.lead {
+  max-width: 60ch;
+  font-size: 1.14rem;
+  margin-top: 0.55rem;
+  margin-bottom: 0.35rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.shot-wrap {
+  margin: 1.4rem 0 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.1rem;
+  margin: 0 0 1.4rem;
+}
+
+.btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-decoration: none;
+  background: linear-gradient(120deg, var(--primary), #32e0bd);
+  color: #061217;
+  padding: 1rem 1.35rem 1.05rem;
+  border-radius: 14px;
+  font-weight: 600;
+  transition: transform 150ms ease, box-shadow 180ms ease, filter 180ms ease;
+  box-shadow: 0 10px 24px rgba(41, 211, 162, 0.28);
+  min-width: 270px;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.02);
+}
+
+.btn-alt {
+  background: linear-gradient(120deg, var(--secondary), #4b94ff);
+  color: #ecf4ff;
+  box-shadow: 0 10px 24px rgba(45, 120, 255, 0.28);
+}
+
+.btn-alt:hover {
+  background: linear-gradient(120deg, #2467de, #3f86f1);
+}
+
+.btn-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.17rem;
+  line-height: 1.2;
+}
+
+.apple-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
+.btn-meta {
+  display: block;
+  margin-top: 0.32rem;
+  font-size: 0.93rem;
+  letter-spacing: 0.01em;
+  opacity: 0.78;
+}
+
+.screenshot {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.norm-note {
+  list-style: none;
+  margin-top: 0.7rem;
+  margin-left: -1.1rem;
+  padding: 0;
+  border-left: 0;
+  color: #9aa5b8;
+  font-size: 0.89rem;
+  opacity: 0.9;
+}
+
+h2 {
+  font-size: 1.55rem;
+}
+
+p,
+li,
+.footer a {
+  font-size: 1.05rem;
+}
+
+.section {
+  margin-bottom: 1.6rem;
+}
+
+.info-grid {
+  display: grid;
+  gap: 2.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 2.4rem;
+  margin-bottom: 2.8rem;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2.2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid rgba(160, 180, 220, 0.25);
+}
+
+.footer a {
+  color: var(--link);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer a + a::before {
+  content: "\00B7";
+  margin-right: 1rem;
+  color: #8fa1bf;
+}
+
+.footer a:hover {
+  color: #9bc4ff;
+}
+
+.gh-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.gh-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+@media (max-width: 700px) {
+  body {
+    font-size: 16px;
+  }
+
+  .page {
+    padding-top: 1.7rem;
+  }
+
+  .logo {
+    width: 72px;
+    height: 72px;
+  }
+
+  .brand {
+    gap: 0.6rem;
+  }
+
+  .subtitle {
+    margin-bottom: 0.75rem;
+    font-size: clamp(1.2rem, 2.2vw, 1.6rem);
+  }
+
+  .lead {
+    font-size: 1.06rem;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding-top: 1.8rem;
+    margin-bottom: 2.1rem;
+  }
+
+  .btn {
+    width: 100%;
+    text-align: center;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .btn-title {
+    font-size: 1.08rem;
+  }
+
+  .btn-meta {
+    font-size: 0.86rem;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+  }
+
+  p,
+  li,
+  .footer a,
+  .norm-note {
+    font-size: 1rem;
+  }
+}

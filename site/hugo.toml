@@ -1,0 +1,7 @@
+baseURL = "https://example.com/"
+defaultContentLanguage = "en"
+title = "Lufsy - Loudness Broadcast Norm Analyser"
+disableKinds = ["taxonomy", "term"]
+
+[params]
+  description = "Lufsy is a Loudness Broadcast Norm Analyser supporting EBU R128, ITU-R BS.1770, ATSC A/85, and other delivery standards."
