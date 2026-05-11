@@ -1,0 +1,172 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  release:
+    needs:
+      - build
+    runs-on: macos-26
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+      APPLE_API_PRIVATE_KEY_B64: ${{ secrets.APPLE_API_PRIVATE_KEY_B64 }}
+    permissions:
+      actions: write
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate tag matches VERSION
+        run: |
+          set -euo pipefail
+          expected_tag="v$(tr -d '[:space:]' < VERSION)"
+          if [ "${GITHUB_REF_NAME}" != "${expected_tag}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match VERSION (${expected_tag})"
+            exit 1
+          fi
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dmg-*
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare notary API key
+        run: |
+          set -euo pipefail
+          test -n "${APPLE_TEAM_ID}"
+          test -n "${APPLE_API_KEY_ID}"
+          test -n "${APPLE_API_ISSUER_ID}"
+          test -n "${APPLE_API_PRIVATE_KEY_B64}"
+
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "${APPLE_API_PRIVATE_KEY_B64}" | base64 --decode > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "NOTARY_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Create notarytool keychain profile
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials "notarytool-profile" \
+            --key "$NOTARY_API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID"
+
+      - name: Notarize DMGs
+        run: |
+          set -euo pipefail
+
+          for dmg in dist/*.dmg; do
+            xcrun notarytool submit "$dmg" \
+              --keychain-profile "notarytool-profile" \
+              --wait
+
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+            spctl -a -t open --context context:primary-signature -v "$dmg"
+          done
+
+      - name: Upload notarized DMG artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dmg-notarized
+          path: dist/*.dmg
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          prerelease: ${{ contains(github.ref_name, 'beta') }}
+          files: dist/*.dmg
+
+  appcast:
+    needs:
+      - release
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dmg-notarized
+          path: dist-appcast
+          merge-multiple: true
+
+      - name: Seed existing appcasts
+        run: |
+          set -euo pipefail
+          mkdir -p dist-appcast/dmg-arm64 dist-appcast/dmg-x86_64
+          curl -fsSL "https://lufsy.koman.app/appcast-arm64.xml" -o dist-appcast/dmg-arm64/appcast-arm64.xml || true
+          curl -fsSL "https://lufsy.koman.app/appcast-x86_64.xml" -o dist-appcast/dmg-x86_64/appcast-x86_64.xml || true
+
+      - name: Arrange notarized DMGs by architecture
+        run: |
+          set -euo pipefail
+          arm64_dmg="$(ls dist-appcast/*-arm64-*.dmg)"
+          x86_dmg="$(ls dist-appcast/*-x86_64-*.dmg)"
+          mv "$arm64_dmg" dist-appcast/dmg-arm64/
+          mv "$x86_dmg" dist-appcast/dmg-x86_64/
+
+      - name: Resolve Sparkle generate_appcast
+        run: |
+          set -euo pipefail
+          swift package resolve
+          test -x .build/artifacts/sparkle/Sparkle/bin/generate_appcast
+
+      - name: Generate appcasts
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          IS_BETA: ${{ contains(github.ref_name, 'beta') }}
+        run: |
+          set -euo pipefail
+          release_version="${RELEASE_TAG#v}"
+          release_build_version="$(printf '%s' "${release_version}" | sed -E 's/-beta\.([0-9]+)$/b\1/; s/-.*$//')"
+          generate_for_arch() {
+            local arch_dir="$1"
+            local output_file="$2"
+            local -a channel_args=()
+            if [ "${IS_BETA}" = "true" ]; then
+              channel_args=(--channel beta)
+            fi
+
+            ./.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+              "${arch_dir}" \
+              -o "${output_file}" \
+              --disable-nested-code-check \
+              --maximum-versions 1 \
+              --ed-key-file <(printf '%s' "${{ secrets.SPARKLE_PRIVATE_KEY_B64 }}") \
+              --versions "${release_build_version}" \
+              --download-url-prefix "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/" \
+              --link "https://lufsy.koman.app" \
+              --full-release-notes-url "https://github.com/${REPO}/releases" \
+              ${channel_args[@]+"${channel_args[@]}"}
+          }
+
+          generate_for_arch ./dist-appcast/dmg-arm64 ./dist-appcast/dmg-arm64/appcast-arm64.xml
+          generate_for_arch ./dist-appcast/dmg-x86_64 ./dist-appcast/dmg-x86_64/appcast-x86_64.xml
+
+      - name: Upload appcast artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: appcast-files
+          path: |
+            dist-appcast/dmg-arm64/appcast-arm64.xml
+            dist-appcast/dmg-x86_64/appcast-x86_64.xml
+          if-no-files-found: error
