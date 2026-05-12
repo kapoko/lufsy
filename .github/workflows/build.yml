@@ -8,6 +8,7 @@ on:
       - dev
     paths-ignore:
       - VERSION
+      - README.md
 
 jobs:
   checks:

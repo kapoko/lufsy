@@ -1,7 +1,7 @@
 # Lufsy
 
 [![](https://github.com/kapoko/lufsy/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/kapoko/lufsy/actions/workflows/build.yml)
-[![](https://github.com/kapoko/lufsy/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/kapoko/lufsy/actions/workflows/release.yml)
+[![](https://github.com/kapoko/lufsy/actions/workflows/release.yml/badge.svg)](https://github.com/kapoko/lufsy/actions/workflows/release.yml)
 
 Loudness Broadcast Norm Analyser.
 
@@ -27,4 +27,13 @@ Each profile checks integrated loudness plus true peak, with profile-specific ta
 
 ```bash
 swift run
+```
+
+### Beta update channel
+
+Enable beta updates. Used for testing releases.
+
+```bash
+defaults write app.koman.lufsy updates.beta.enabled -bool true
+# or false
 ```
