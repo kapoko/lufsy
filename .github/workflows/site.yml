@@ -13,6 +13,9 @@ on:
     branches:
       - main
       - dev
+    paths:
+      - site/**
+      - .github/workflows/site.yml
 
 jobs:
   build:
@@ -52,20 +55,29 @@ jobs:
           curl -fsSL "https://lufsy.koman.app/appcast-x86_64.xml" -o static/appcast-x86_64.xml || true
 
       - name: Build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          HUGO_APP_VERSION="$({
-            if [ "${SITE_RELEASE_CHANNEL}" = "stable" ]; then
-              tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
-            else
-              tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || true)"
-            fi
-            [ -n "$tag" ] && [ "$tag" != "null" ] && printf '%s' "${tag#v}" || printf '0.0.0'
-          })" hugo --minify
+          if [ "${IS_RELEASE}" = "true" ]; then
+            app_version="${GITHUB_REF_NAME#v}"
+          else
+            tag="$({
+              if [ "${SITE_RELEASE_CHANNEL}" = "stable" ]; then
+                gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || true
+              else
+                gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || true
+              fi
+            })"
+            app_version="$([ -n "$tag" ] && [ "$tag" != "null" ] && printf '%s' "${tag#v}" || printf '0.0.0')"
+          fi
+
+          HUGO_APP_VERSION="${app_version}" hugo --minify
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
+          name: github-pages-${{ github.run_id }}
           path: site/public
 
   deploy:
@@ -84,3 +96,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_id }}
