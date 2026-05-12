@@ -1,3 +1,5 @@
+<img src="Resources/logo.png" title="Lufsy" alt="Lufsy logo" width="128">
+
 # Lufsy
 
 [![](https://github.com/kapoko/lufsy/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/kapoko/lufsy/actions/workflows/build.yml)
