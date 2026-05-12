@@ -11,11 +11,6 @@
     <meta name="description"
         content="{{ with .Params.seo.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}" />
     <meta name="keywords" content="{{ with .Params.seo.keywords }}{{ delimit . " , " }}{{ end }}" />
-    <meta property="og:title" content="{{ with .Params.seo.title }}{{ . }}{{ else }}{{ .Site.Title }}{{ end }}" />
-    <meta property="og:description"
-        content="{{ with .Params.seo.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/images/screenshot.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sacramento&display=swap" rel="stylesheet" />

@@ -4,3 +4,24 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Lufsy" />
 <link rel="manifest" href="/favicons/site.webmanifest" />
+
+{{- $ogTitle := .Site.Title -}}
+{{- with .Params.seo.title }}{{ $ogTitle = . }}{{ else }}{{ with .Title }}{{ $ogTitle = . }}{{ end }}{{ end -}}
+
+{{- $ogDescription := .Site.Params.description -}}
+{{- with .Params.seo.description }}{{ $ogDescription = . }}{{ else }}{{ with .Description }}{{ $ogDescription = . }}{{ end }}{{ end -}}
+
+{{- $ogType := "website" -}}
+{{- if .IsPage }}{{ $ogType = "article" }}{{ end -}}
+
+<meta property="og:title" content="{{ $ogTitle }}" />
+<meta property="og:description" content="{{ $ogDescription }}" />
+<meta property="og:type" content="{{ $ogType }}" />
+<meta property="og:url" content="{{ .Permalink }}" />
+<meta property="og:site_name" content="{{ .Site.Title }}" />
+<meta property="og:locale" content="{{ .Site.Language.Lang }}" />
+<meta property="og:image" content="{{ "/images/facebook_og.jpg" | absURL }}" />
+<meta property="og:image:secure_url" content="{{ "/images/facebook_og.jpg" | absURL }}" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="2400" />
+<meta property="og:image:height" content="1260" />
