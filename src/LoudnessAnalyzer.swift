@@ -133,6 +133,10 @@ enum LoudnessAnalyzerError: Error {
 }
 
 final class LoudnessAnalyzer {
+  func readAudioDetails(url: URL) throws -> (sampleRateHz: Int?, bitDepth: Int?) {
+    try probeAudioDetails(url: url)
+  }
+
   func analyze(url: URL, onProgress: ((Double?) -> Void)? = nil) throws -> LoudnessAnalysisResult {
     let ffmpegPath = resolveFFmpegPath()
     guard FileManager.default.fileExists(atPath: ffmpegPath) else {
@@ -144,6 +148,7 @@ final class LoudnessAnalyzer {
     process.arguments = [
       "-nostdin",
       "-hide_banner",
+      "-threads", "0",
       "-progress", "pipe:2",
       "-stats_period", "0.2",
       "-i", url.path,

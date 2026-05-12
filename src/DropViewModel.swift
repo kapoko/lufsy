@@ -129,6 +129,10 @@ final class DropViewModel: ObservableObject {
     files.append(contentsOf: newRows)
 
     Task {
+      await preloadAudioDetails(withIDs: Set(newRows.map(\.id)))
+    }
+
+    Task {
       await analyzeFiles(withIDs: Set(newRows.map(\.id)))
     }
   }
@@ -187,6 +191,34 @@ final class DropViewModel: ObservableObject {
               files[idx].state = .failed(reason)
             }
           }
+        }
+      }
+    }
+  }
+
+  private func preloadAudioDetails(withIDs ids: Set<UUID>) async {
+    let analyzer = self.analyzer
+    let pendingFiles = files.filter { ids.contains($0.id) }
+
+    await withTaskGroup(of: (UUID, Int?, Int?).self) { group in
+      for file in pendingFiles {
+        group.addTask {
+          do {
+            let details = try analyzer.readAudioDetails(url: file.url)
+            return (file.id, details.sampleRateHz, details.bitDepth)
+          } catch {
+            return (file.id, nil, nil)
+          }
+        }
+      }
+
+      for await (id, sampleRateHz, bitDepth) in group {
+        guard let idx = files.firstIndex(where: { $0.id == id }) else { continue }
+        if files[idx].sampleRateHz == nil {
+          files[idx].sampleRateHz = sampleRateHz
+        }
+        if files[idx].bitDepth == nil {
+          files[idx].bitDepth = bitDepth
         }
       }
     }
