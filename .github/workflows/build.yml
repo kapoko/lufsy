@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - dev
+    paths-ignore:
+      - VERSION
 
 jobs:
   checks:
