@@ -9,6 +9,10 @@ Loudness Broadcast Norm Analyser.
 
 Lufsy is a native macOS loudness checking app that analyzes audio/video files with bundled FFmpeg and validates them against multiple delivery norms.
 
+## [Download](https://lufsy.koman.app)
+
+Downloads are available from the project website: [lufsy.koman.app](https://lufsy.koman.app)
+
 ## Supported norms
 
 - `EBU R128`
