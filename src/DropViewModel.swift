@@ -21,7 +21,9 @@ struct AnalyzedFile: Identifiable, Equatable {
 
   var fileName: String { url.lastPathComponent }
   var integratedSort: Double { metrics?.integratedLUFS ?? -.infinity }
+  var loudnessRangeSort: Double { metrics?.loudnessRangeLU ?? -.infinity }
   var truePeakSort: Double { metrics?.truePeakDBTP ?? -.infinity }
+  var dbfsSort: Double { metrics?.samplePeakDBFS ?? -.infinity }
   var sampleRateSort: Int { sampleRateHz ?? 0 }
   var bitDepthSort: Int { bitDepth ?? 0 }
   var statusSort: Int {
@@ -176,12 +178,16 @@ final class DropViewModel: ObservableObject {
 
       for await (id, metrics, sampleRateHz, bitDepth, failed) in group {
         if let idx = files.firstIndex(where: { $0.id == id }) {
+          let fileName = files[idx].fileName
+          let elapsed = files[idx].startedAt.map { Date().timeIntervalSince($0) }
+
           files[idx].metrics = metrics
           files[idx].sampleRateHz = sampleRateHz
           files[idx].bitDepth = bitDepth
           files[idx].progress = nil
           if failed {
             files[idx].state = .failed("analysis failed")
+            logAnalysisDuration(for: fileName, elapsed: elapsed, success: false)
           } else if let metrics {
             let verdict = analyzer.evaluate(metrics: metrics, profile: selectedProfile)
             switch verdict {
@@ -190,6 +196,7 @@ final class DropViewModel: ObservableObject {
             case .fail(let reason):
               files[idx].state = .failed(reason)
             }
+            logAnalysisDuration(for: fileName, elapsed: elapsed, success: true)
           }
         }
       }
@@ -222,6 +229,21 @@ final class DropViewModel: ObservableObject {
         }
       }
     }
+  }
+
+  private func logAnalysisDuration(for fileName: String, elapsed: TimeInterval?, success: Bool) {
+    guard let elapsed else {
+      print("[analysis] \(success ? "done" : "failed") \(fileName)")
+      return
+    }
+
+    print(
+      String(
+        format: "[analysis] %@ %@ in %.2fs",
+        success ? "done" : "failed",
+        fileName,
+        elapsed
+      ))
   }
 
   private func updateProgress(for id: UUID, progress: Double?) {

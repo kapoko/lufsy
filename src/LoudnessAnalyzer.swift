@@ -5,6 +5,7 @@ struct LoudnessMetrics: Equatable {
   let integratedLUFS: Double
   let loudnessRangeLU: Double
   let truePeakDBTP: Double
+  let samplePeakDBFS: Double
   let thresholdLUFS: Double
 }
 
@@ -153,7 +154,9 @@ final class LoudnessAnalyzer {
       "-stats_period", "0.2",
       "-i", url.path,
       "-vn",
-      "-af", "loudnorm=I=-23:TP=-1.0:LRA=7:print_format=json",
+      "-filter_complex",
+      "[0:a]asplit=2[loud][peak];[loud]loudnorm=I=-23:TP=-1.0:LRA=7:print_format=json[loudout];[peak]astats=metadata=0:reset=0:measure_overall=Peak_level:measure_perchannel=none,anullsink",
+      "-map", "[loudout]",
       "-f", "null",
       "-",
     ]
@@ -208,9 +211,9 @@ final class LoudnessAnalyzer {
     outputLock.unlock()
 
     let metrics = try parseMetrics(from: collectedOutput)
-    let details = try? probeAudioDetails(url: url)
+    let details = parseAudioDetails(from: collectedOutput)
     return LoudnessAnalysisResult(
-      metrics: metrics, sampleRateHz: details?.sampleRateHz, bitDepth: details?.bitDepth)
+      metrics: metrics, sampleRateHz: details.sampleRateHz, bitDepth: details.bitDepth)
   }
 
   private func probeAudioDetails(url: URL) throws -> (sampleRateHz: Int?, bitDepth: Int?) {
@@ -326,7 +329,8 @@ final class LoudnessAnalyzer {
       let inputI = parseDouble(from: object["input_i"]),
       let inputLRA = parseDouble(from: object["input_lra"]),
       let inputTP = parseDouble(from: object["input_tp"]),
-      let inputThresh = parseDouble(from: object["input_thresh"])
+      let inputThresh = parseDouble(from: object["input_thresh"]),
+      let samplePeak = parseOverallPeakLevelDBFS(from: output)
     else {
       throw LoudnessAnalyzerError.invalidOutput
     }
@@ -335,8 +339,21 @@ final class LoudnessAnalyzer {
       integratedLUFS: inputI,
       loudnessRangeLU: inputLRA,
       truePeakDBTP: inputTP,
+      samplePeakDBFS: samplePeak,
       thresholdLUFS: inputThresh
     )
+  }
+
+  private func parseOverallPeakLevelDBFS(from output: String) -> Double? {
+    let pattern = "Peak level dB:\\s*(-?[0-9]+(?:\\.[0-9]+)?)"
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(location: 0, length: output.utf16.count)
+    let matches = regex.matches(in: output, options: [], range: range)
+    guard let last = matches.last, last.numberOfRanges > 1 else { return nil }
+
+    let ns = output as NSString
+    let raw = ns.substring(with: last.range(at: 1))
+    return Double(raw)
   }
 
   private func parseDouble(from value: Any?) -> Double? {

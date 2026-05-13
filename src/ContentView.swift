@@ -30,7 +30,9 @@ struct ContentView: View {
   @State private var tableLayoutResetToken = UUID()
   @State private var sortOrder = [KeyPathComparator(\AnalyzedFile.fileName, order: .forward)]
   @AppStorage("showsLoudnessColumn") private var showsLoudnessColumn = true
+  @AppStorage("showsLoudnessRangeColumn") private var showsLoudnessRangeColumn = false
   @AppStorage("showsTruePeakColumn") private var showsTruePeakColumn = true
+  @AppStorage("showsDBFSColumn") private var showsDBFSColumn = false
   @AppStorage("showsSampleRateColumn") private var showsSampleRateColumn = false
   @AppStorage("showsBitDepthColumn") private var showsBitDepthColumn = false
   private let timer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
@@ -132,8 +134,16 @@ struct ContentView: View {
         loudnessColumn
       }
 
+      if showsLoudnessRangeColumn {
+        loudnessRangeColumn
+      }
+
       if showsTruePeakColumn {
         truePeakColumn
+      }
+
+      if showsDBFSColumn {
+        dbfsColumn
       }
 
       if showsSampleRateColumn {
@@ -170,7 +180,9 @@ struct ContentView: View {
       Toggle(isOn: .constant(true)) { Text("File") }
         .disabled(true)
       Toggle(isOn: $showsLoudnessColumn) { Text("Loudness") }
-      Toggle(isOn: $showsTruePeakColumn) { Text("True Peak") }
+      Toggle(isOn: $showsLoudnessRangeColumn) { Text("Loudness Range") }
+      Toggle(isOn: $showsTruePeakColumn) { Text("True Peak (dBTP)") }
+      Toggle(isOn: $showsDBFSColumn) { Text("Peak (dBFS)") }
       Toggle(isOn: $showsSampleRateColumn) { Text("Sample Rate") }
       Toggle(isOn: $showsBitDepthColumn) { Text("Bit Depth") }
       Toggle(isOn: .constant(true)) { Text(viewModel.selectedProfile.columnTitle) }
@@ -186,7 +198,9 @@ struct ContentView: View {
 
   private func resetColumnVisibilityDefaults() {
     showsLoudnessColumn = true
+    showsLoudnessRangeColumn = false
     showsTruePeakColumn = true
+    showsDBFSColumn = false
     showsSampleRateColumn = false
     showsBitDepthColumn = false
     tableLayoutResetToken = UUID()
@@ -212,12 +226,23 @@ struct ContentView: View {
 
   private var truePeakColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
   {
-    TableColumn("True Peak", value: \.truePeakSort) { file in
+    TableColumn("True Peak (dBTP)", value: \.truePeakSort) { file in
       Text(valueText(file.metrics?.truePeakDBTP, suffix: " dBTP"))
         .lineLimit(1)
         .monospacedDigit()
     }
     .width(min: 90, ideal: 110, max: 130)
+  }
+
+  private var loudnessRangeColumn:
+    some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
+  {
+    TableColumn("Loudness Range", value: \.loudnessRangeSort) { file in
+      Text(valueText(file.metrics?.loudnessRangeLU, suffix: " LU"))
+        .lineLimit(1)
+        .monospacedDigit()
+    }
+    .width(min: 100, ideal: 120, max: 140)
   }
 
   private var sampleRateColumn:
@@ -229,6 +254,15 @@ struct ContentView: View {
         .monospacedDigit()
     }
     .width(min: 80, ideal: 90, max: 110)
+  }
+
+  private var dbfsColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>> {
+    TableColumn("Peak (dBFS)", value: \.dbfsSort) { file in
+      Text(valueText(file.metrics?.samplePeakDBFS, suffix: " dBFS"))
+        .lineLimit(1)
+        .monospacedDigit()
+    }
+    .width(min: 90, ideal: 110, max: 130)
   }
 
   private var bitDepthColumn: some TableColumnContent<AnalyzedFile, KeyPathComparator<AnalyzedFile>>
