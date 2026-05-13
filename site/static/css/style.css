@@ -226,13 +226,13 @@ li,
   color: #9bc4ff;
 }
 
-.gh-link {
+.footer-link {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
 }
 
-.gh-icon {
+.footer-icon {
   width: 18px;
   height: 18px;
   fill: currentColor;
