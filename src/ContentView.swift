@@ -26,7 +26,6 @@ struct ContentView: View {
   @ObservedObject private var viewModel = DropViewModel.shared
   @State private var selection = Set<AnalyzedFile.ID>()
   @State private var showsNormInfo = false
-  @State private var now = Date()
   @State private var tableLayoutResetToken = UUID()
   @State private var sortOrder = [KeyPathComparator(\AnalyzedFile.fileName, order: .forward)]
   @AppStorage("showsLoudnessColumn") private var showsLoudnessColumn = true
@@ -35,7 +34,6 @@ struct ContentView: View {
   @AppStorage("showsDBFSColumn") private var showsDBFSColumn = false
   @AppStorage("showsSampleRateColumn") private var showsSampleRateColumn = false
   @AppStorage("showsBitDepthColumn") private var showsBitDepthColumn = false
-  private let timer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
 
   var body: some View {
     VStack(spacing: 14) {
@@ -87,9 +85,6 @@ struct ContentView: View {
     }
     .sheet(isPresented: $showsNormInfo) {
       LoudnessNormInfoView()
-    }
-    .onReceive(timer) { tick in
-      now = tick
     }
     .onDeleteCommand {
       guard !selection.isEmpty else { return }
@@ -287,8 +282,8 @@ struct ContentView: View {
     if let icon = viewModel.stateIcon(for: file) {
       Image(systemName: icon)
         .foregroundColor(Color(viewModel.stateColor(for: file)))
-    } else if viewModel.shouldShowInlineProgress(for: file, now: now) {
-      if let progress = file.progress {
+    } else if file.showInlineProgress {
+      if let progress = viewModel.progressByID[file.id] {
         ProgressView(value: progress)
           .controlSize(.small)
       } else {
@@ -317,7 +312,19 @@ struct ContentView: View {
   }
 
   private var sortedFiles: [AnalyzedFile] {
-    viewModel.files.sorted(using: sortOrder)
+    viewModel.files.sorted { lhs, rhs in
+      for comparator in sortOrder {
+        let ordering = comparator.compare(lhs, rhs)
+        if ordering == .orderedAscending { return true }
+        if ordering == .orderedDescending { return false }
+      }
+
+      if lhs.fileName != rhs.fileName {
+        return lhs.fileName.localizedStandardCompare(rhs.fileName) == .orderedAscending
+      }
+
+      return lhs.id.uuidString < rhs.id.uuidString
+    }
   }
 }
 

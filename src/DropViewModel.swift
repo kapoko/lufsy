@@ -17,7 +17,7 @@ struct AnalyzedFile: Identifiable, Equatable {
   var sampleRateHz: Int?
   var bitDepth: Int?
   var startedAt: Date?
-  var progress: Double?
+  var showInlineProgress: Bool
 
   var fileName: String { url.lastPathComponent }
   var integratedSort: Double { metrics?.integratedLUFS ?? -.infinity }
@@ -44,11 +44,15 @@ struct AnalyzedFile: Identifiable, Equatable {
 final class DropViewModel: ObservableObject {
   static let shared = DropViewModel()
   private static let selectedProfileDefaultsKey = "selectedLoudnessProfile"
+  private static let inlineProgressRevealDelayNs: UInt64 = 3_000_000_000
+  private static let minInlineProgressUpdateInterval: TimeInterval = 0.9
+  private static let minInlineProgressDelta: Double = 0.05
 
   @Published var files: [AnalyzedFile] = []
   @Published var isDragHovering = false
   @Published var showUnsupportedAlert = false
   @Published var unsupportedMessage = ""
+  @Published var progressByID: [UUID: Double] = [:]
   @Published var selectedProfile: LoudnessProfile = .ebuR128 {
     didSet {
       UserDefaults.standard.set(selectedProfile.rawValue, forKey: Self.selectedProfileDefaultsKey)
@@ -58,6 +62,11 @@ final class DropViewModel: ObservableObject {
 
   private let maxConcurrentAnalyses = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
   private let analyzer = LoudnessAnalyzer()
+  private struct ProgressCache {
+    var lastUpdateAt: Date?
+    var lastValue: Double?
+  }
+  private var progressCacheByID: [UUID: ProgressCache] = [:]
 
   private init() {
     if let rawValue = UserDefaults.standard.string(forKey: Self.selectedProfileDefaultsKey),
@@ -120,7 +129,7 @@ final class DropViewModel: ObservableObject {
           sampleRateHz: nil,
           bitDepth: nil,
           startedAt: nil,
-          progress: nil
+          showInlineProgress: false
         )
       }
 
@@ -141,6 +150,10 @@ final class DropViewModel: ObservableObject {
 
   func removeFiles(withIDs ids: Set<UUID>) {
     files.removeAll { ids.contains($0.id) }
+    for id in ids {
+      progressByID[id] = nil
+      progressCacheByID[id] = nil
+    }
   }
 
   private func analyzeFiles(withIDs ids: Set<UUID>) async {
@@ -149,7 +162,9 @@ final class DropViewModel: ObservableObject {
     for index in files.indices where ids.contains(files[index].id) {
       files[index].state = .analyzing
       files[index].startedAt = Date()
-      files[index].progress = nil
+      files[index].showInlineProgress = false
+      progressByID[files[index].id] = nil
+      scheduleInlineProgressReveal(for: files[index].id)
     }
 
     await withTaskGroup(of: (UUID, LoudnessMetrics?, Int?, Int?, Bool).self) { group in
@@ -184,7 +199,9 @@ final class DropViewModel: ObservableObject {
           files[idx].metrics = metrics
           files[idx].sampleRateHz = sampleRateHz
           files[idx].bitDepth = bitDepth
-          files[idx].progress = nil
+          files[idx].showInlineProgress = false
+          progressByID[id] = nil
+          progressCacheByID[id] = nil
           if failed {
             files[idx].state = .failed("analysis failed")
             logAnalysisDuration(for: fileName, elapsed: elapsed, success: false)
@@ -246,23 +263,6 @@ final class DropViewModel: ObservableObject {
       ))
   }
 
-  private func updateProgress(for id: UUID, progress: Double?) {
-    guard let idx = files.firstIndex(where: { $0.id == id }) else { return }
-    guard files[idx].state == .analyzing else { return }
-    if let progress {
-      files[idx].progress = min(max(progress, 0), 0.99)
-    } else {
-      files[idx].progress = nil
-    }
-  }
-
-  func shouldShowInlineProgress(for file: AnalyzedFile, now: Date) -> Bool {
-    guard case .analyzing = file.state, let startedAt = file.startedAt else {
-      return false
-    }
-    return now.timeIntervalSince(startedAt) >= 3
-  }
-
   private func reevaluateCompletedFiles() {
     for index in files.indices {
       guard let metrics = files[index].metrics else { continue }
@@ -275,6 +275,59 @@ final class DropViewModel: ObservableObject {
       case .fail(let reason):
         files[index].state = .failed(reason)
       }
+    }
+  }
+
+  private func scheduleInlineProgressReveal(for id: UUID) {
+    Task { [weak self] in
+      try? await Task.sleep(nanoseconds: Self.inlineProgressRevealDelayNs)
+      await MainActor.run {
+        self?.revealInlineProgress(for: id)
+      }
+    }
+  }
+
+  private func revealInlineProgress(for id: UUID) {
+    guard let idx = files.firstIndex(where: { $0.id == id }) else { return }
+    guard files[idx].state == .analyzing else { return }
+    files[idx].showInlineProgress = true
+    if let lastValue = progressCacheByID[id]?.lastValue {
+      progressByID[id] = lastValue
+      var cache = progressCacheByID[id] ?? ProgressCache()
+      cache.lastUpdateAt = Date()
+      progressCacheByID[id] = cache
+    }
+  }
+
+  private func updateProgress(for id: UUID, progress: Double?) {
+    guard let idx = files.firstIndex(where: { $0.id == id }) else { return }
+    guard files[idx].state == .analyzing else { return }
+
+    if let progress {
+      let clamped = min(max(progress, 0), 0.99)
+      if files[idx].showInlineProgress == false {
+        var cache = progressCacheByID[id] ?? ProgressCache()
+        cache.lastValue = clamped
+        progressCacheByID[id] = cache
+        return
+      }
+
+      let now = Date()
+      let cache = progressCacheByID[id] ?? ProgressCache()
+
+      if let lastAt = cache.lastUpdateAt,
+        let lastValue = cache.lastValue,
+        now.timeIntervalSince(lastAt) < Self.minInlineProgressUpdateInterval,
+        abs(clamped - lastValue) < Self.minInlineProgressDelta
+      {
+        return
+      }
+
+      progressByID[id] = clamped
+      progressCacheByID[id] = ProgressCache(lastUpdateAt: now, lastValue: clamped)
+    } else {
+      progressByID[id] = nil
+      progressCacheByID[id] = nil
     }
   }
 
