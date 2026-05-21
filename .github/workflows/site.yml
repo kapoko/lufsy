@@ -2,7 +2,7 @@ name: Site
 
 env:
   IS_RELEASE: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') }}
-  SITE_RELEASE_CHANNEL: beta
+  SITE_RELEASE_CHANNEL: stable
 
 permissions:
   contents: read
