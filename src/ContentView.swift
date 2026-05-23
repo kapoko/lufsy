@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if LUFSY_PRO
+  import LufsyPro
+#endif
+
 extension TableColumnBuilder {
   static func buildEither<Column>(first column: Column) -> Column
   where
@@ -26,6 +30,7 @@ struct ContentView: View {
   @ObservedObject private var viewModel = DropViewModel.shared
   @State private var selection = Set<AnalyzedFile.ID>()
   @State private var showsNormInfo = false
+  @State private var showsRightSidebar = false
   @State private var tableLayoutResetToken = UUID()
   @State private var sortOrder = [KeyPathComparator(\AnalyzedFile.fileName, order: .forward)]
   @AppStorage("showsLoudnessColumn") private var showsLoudnessColumn = true
@@ -36,61 +41,85 @@ struct ContentView: View {
   @AppStorage("showsBitDepthColumn") private var showsBitDepthColumn = false
 
   var body: some View {
-    VStack(spacing: 14) {
-      listView
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding(16)
-    .toolbar {
-      ToolbarItem(placement: .automatic) {
-        Spacer()
+    Color.clear
+      .overlay {
+        listView
+          .frame(minWidth: 560)
+          .padding(16)
       }
-
-      ToolbarItemGroup(placement: .primaryAction) {
-        Button {
-          showsNormInfo = true
-        } label: {
-          Label("About loudness norms", systemImage: "info.circle")
-            .imageScale(.medium)
-            .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .inspector(isPresented: $showsRightSidebar) {
+        #if LUFSY_PRO
+          operationsSidebar
+            .inspectorColumnWidth(min: 270, ideal: 350, max: 430)
+        #else
+          EmptyView()
+        #endif
+      }
+      .toolbar {
+        ToolbarItem(placement: .automatic) {
+          Spacer()
         }
-        .labelStyle(.iconOnly)
-        .help("About loudness norms")
-        .accessibilityLabel("About loudness norms")
 
-        Picker("Loudness Norm", selection: $viewModel.selectedProfile) {
-          ForEach(LoudnessProfile.allCases) { profile in
-            Text(profile.displayName).tag(profile)
+        ToolbarItemGroup(placement: .primaryAction) {
+          Button {
+            showsNormInfo = true
+          } label: {
+            Label("About loudness norms", systemImage: "info.circle")
+              .imageScale(.medium)
+              .foregroundStyle(.secondary)
           }
-        }
-        .pickerStyle(.menu)
+          .labelStyle(.iconOnly)
+          .help("About loudness norms")
+          .accessibilityLabel("About loudness norms")
 
-        Button(action: openFiles) {
-          Image(systemName: "plus")
+          Picker("Loudness Norm", selection: $viewModel.selectedProfile) {
+            ForEach(LoudnessProfile.allCases) { profile in
+              Text(profile.displayName).tag(profile)
+            }
+          }
+          .pickerStyle(.menu)
+
+          #if LUFSY_PRO
+            LufsyProProcessToolbarButton(
+              isProcessing: viewModel.isRenderingProPass,
+              isEnabled: viewModel.canRender(for: selection),
+              processedCount: viewModel.processedFilesCount,
+              totalCount: viewModel.processingFilesTotal,
+              action: { viewModel.renderSelectedFile(withIDs: selection) }
+            )
+          #endif
+
+          Button(action: openFiles) {
+            Image(systemName: "plus")
+          }
+          .labelStyle(.iconOnly)
+          .help("Add Files")
+
+          #if LUFSY_PRO
+            LufsyProSidebarToggleButton(isPresented: $showsRightSidebar)
+          #endif
         }
-        .labelStyle(.iconOnly)
-        .help("Add Files")
       }
-    }
-    .onDrop(of: [UTType.fileURL.identifier], isTargeted: $viewModel.isDragHovering) {
-      providers in
-      viewModel.handleDrop(providers: providers)
-    }
-    .alert(isPresented: $viewModel.showUnsupportedAlert) {
-      Alert(
-        title: Text("Unsupported Files"),
-        message: Text(viewModel.unsupportedMessage),
-        dismissButton: .default(Text("OK"))
-      )
-    }
-    .sheet(isPresented: $showsNormInfo) {
-      LoudnessNormInfoView()
-    }
-    .onDeleteCommand {
-      guard !selection.isEmpty else { return }
-      viewModel.removeFiles(withIDs: selection)
-      selection.removeAll()
-    }
+      .onDrop(of: [UTType.fileURL.identifier], isTargeted: $viewModel.isDragHovering) {
+        providers in
+        viewModel.handleDrop(providers: providers)
+      }
+      .alert(isPresented: $viewModel.showUnsupportedAlert) {
+        Alert(
+          title: Text("Unsupported Files"),
+          message: Text(viewModel.unsupportedMessage),
+          dismissButton: .default(Text("OK"))
+        )
+      }
+      .sheet(isPresented: $showsNormInfo) {
+        LoudnessNormInfoView()
+      }
+      .onDeleteCommand {
+        guard !selection.isEmpty else { return }
+        viewModel.removeFiles(withIDs: selection)
+        selection.removeAll()
+      }
   }
 
   private func openFiles() {
@@ -120,6 +149,22 @@ struct ContentView: View {
       }
     }
   }
+
+  #if LUFSY_PRO
+    private var operationsSidebar: some View {
+      LufsyProSidebarView(
+        context: .init(
+          selectedNormName: viewModel.selectedProfile.displayName,
+          standardLoudnessMatchEnabled: viewModel.proProcessingOptions.standardLoudnessMatchEnabled,
+          toggleStandardLoudnessMatch: {
+            viewModel.proProcessingOptions.standardLoudnessMatchEnabled.toggle()
+          }
+        )
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .ignoresSafeArea()
+    }
+  #endif
 
   private var tableView: some View {
     Table(sortedFiles, selection: $selection, sortOrder: $sortOrder) {
@@ -155,6 +200,12 @@ struct ContentView: View {
       columnToggles
     }
     .contextMenu(forSelectionType: AnalyzedFile.ID.self) { selectedIDs in
+      if !selectedIDs.isEmpty {
+        Button("Show in Finder") {
+          showInFinder(ids: selectedIDs)
+        }
+      }
+
       if selectedIDs.count == 1, let singleID = selectedIDs.first {
         Button("Remove") {
           viewModel.removeFiles(withIDs: [singleID])
@@ -168,6 +219,14 @@ struct ContentView: View {
       }
     }
     .id(tableLayoutResetToken)
+  }
+
+  private func showInFinder(ids: Set<AnalyzedFile.ID>) {
+    let urls = viewModel.files
+      .filter { ids.contains($0.id) }
+      .map(\.url)
+    guard !urls.isEmpty else { return }
+    NSWorkspace.shared.activateFileViewerSelecting(urls)
   }
 
   private var columnToggles: some View {
@@ -298,7 +357,7 @@ struct ContentView: View {
 
   private func valueText(_ value: Double?, suffix: String) -> String {
     guard let value else { return "--" }
-    return String(format: "%.1f%@", value, suffix)
+    return String(format: "%.2f%@", value, suffix)
   }
 
   private func sampleRateText(_ value: Int?) -> String {

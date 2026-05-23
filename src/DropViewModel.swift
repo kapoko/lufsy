@@ -2,9 +2,14 @@ import AppKit
 import Foundation
 import UniformTypeIdentifiers
 
+#if LUFSY_PRO
+  import LufsyPro
+#endif
+
 enum AnalysisState: Equatable {
   case queued
   case analyzing
+  case processing
   case passed
   case failed(String)
 }
@@ -32,10 +37,12 @@ struct AnalyzedFile: Identifiable, Equatable {
       return 0
     case .analyzing:
       return 1
-    case .failed:
+    case .processing:
       return 2
-    case .passed:
+    case .failed:
       return 3
+    case .passed:
+      return 4
     }
   }
 }
@@ -59,6 +66,12 @@ final class DropViewModel: ObservableObject {
       reevaluateCompletedFiles()
     }
   }
+  @Published var isRenderingProPass = false
+  #if LUFSY_PRO
+    @Published var proProcessingOptions = LufsyProProcessingOptions()
+    @Published var processedFilesCount = 0
+    @Published var processingFilesTotal = 0
+  #endif
 
   private let maxConcurrentAnalyses = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
   private let analyzer = LoudnessAnalyzer()
@@ -118,6 +131,7 @@ final class DropViewModel: ObservableObject {
     }
 
     let existingURLs = Set(files.map(\.url))
+    let existingSupported = uniqueSupported.filter { existingURLs.contains($0) }
     let newRows =
       uniqueSupported
       .filter { !existingURLs.contains($0) }
@@ -132,6 +146,30 @@ final class DropViewModel: ObservableObject {
           showInlineProgress: false
         )
       }
+
+    if !existingSupported.isEmpty {
+      let existingSet = Set(existingSupported)
+      var existingIDs = Set<UUID>()
+      for index in files.indices where existingSet.contains(files[index].url) {
+        files[index].state = .queued
+        files[index].metrics = nil
+        files[index].startedAt = nil
+        files[index].showInlineProgress = false
+        progressByID[files[index].id] = nil
+        progressCacheByID[files[index].id] = nil
+        existingIDs.insert(files[index].id)
+      }
+
+      if !existingIDs.isEmpty {
+        Task {
+          await preloadAudioDetails(withIDs: existingIDs)
+        }
+
+        Task {
+          await analyzeFiles(withIDs: existingIDs)
+        }
+      }
+    }
 
     guard !newRows.isEmpty else {
       return
@@ -155,6 +193,123 @@ final class DropViewModel: ObservableObject {
       progressCacheByID[id] = nil
     }
   }
+
+  #if LUFSY_PRO
+    func canRender(for selectedIDs: Set<UUID>) -> Bool {
+      LufsyProSelectionPlanner.canRender(
+        selectedIDs: selectedIDs,
+        files: proFileSnapshots,
+        options: proProcessingOptions
+      )
+    }
+
+    func renderSelectedFile(withIDs selectedIDs: Set<UUID>) {
+      guard !isRenderingProPass else { return }
+      let items = LufsyProSelectionPlanner.planRenderItems(
+        selectedIDs: selectedIDs,
+        files: proFileSnapshots,
+        targetLUFS: selectedProfile.targetLUFS,
+        maxTruePeakDBTP: selectedProfile.maxTruePeakDBTP
+      )
+      guard !items.isEmpty else { return }
+
+      beginProRendering(for: items)
+      let startedAt = Date()
+      let requestsCount = items.count
+      let processingOptions = proProcessingOptions
+
+      Task {
+        defer {
+          Task { @MainActor in self.endProRendering(for: items) }
+        }
+
+        do {
+          let renderedURLs = try await Task.detached(priority: .userInitiated) {
+            try LufsyProProcessing.render(
+              requests: items.map(\.request),
+              options: processingOptions,
+              onFileProgress: { requestIndex, progress in
+                let fileID = items[requestIndex].id
+                Task { @MainActor in
+                  self.updateProcessingProgress(for: fileID, progress: progress)
+                }
+              },
+              onFileCompleted: { done, _ in
+                Task { @MainActor in
+                  self.processedFilesCount = done
+                }
+              }
+            )
+          }.value
+
+          await MainActor.run {
+            let elapsed = Date().timeIntervalSince(startedAt)
+            print(String(format: "[render] done %d file(s) in %.2fs", requestsCount, elapsed))
+            self.handleDroppedURLs(renderedURLs)
+          }
+        } catch {
+          await MainActor.run {
+            let elapsed = Date().timeIntervalSince(startedAt)
+            print(String(format: "[render] failed batch (%d file(s)) in %.2fs (%@)", requestsCount, elapsed, String(describing: error)))
+            self.unsupportedMessage = "Render failed for one or more selected files."
+            self.showUnsupportedAlert = true
+          }
+        }
+      }
+    }
+
+    private func beginProRendering(for items: [LufsyProRenderItem]) {
+      isRenderingProPass = true
+      processedFilesCount = 0
+      processingFilesTotal = items.count
+
+      for item in items {
+        guard let idx = files.firstIndex(where: { $0.id == item.id }) else { continue }
+        files[idx].state = .processing
+        files[idx].showInlineProgress = true
+        progressByID[item.id] = 0
+        progressCacheByID[item.id] = nil
+      }
+    }
+
+    private func endProRendering(for items: [LufsyProRenderItem]) {
+      isRenderingProPass = false
+      processedFilesCount = 0
+      processingFilesTotal = 0
+
+      for item in items {
+        progressByID[item.id] = nil
+        progressCacheByID[item.id] = nil
+        guard let idx = files.firstIndex(where: { $0.id == item.id }),
+          files[idx].state == .processing
+        else { continue }
+
+        files[idx].showInlineProgress = false
+        guard let metrics = files[idx].metrics else { continue }
+        let verdict = analyzer.evaluate(metrics: metrics, profile: selectedProfile)
+        switch verdict {
+        case .pass:
+          files[idx].state = .passed
+        case .fail(let reason):
+          files[idx].state = .failed(reason)
+        }
+      }
+    }
+
+    private var proFileSnapshots: [LufsyProFileSnapshot] {
+      files.map { file in
+        LufsyProFileSnapshot(
+          id: file.id,
+          inputURL: file.url,
+          fileName: file.fileName,
+          isAnalyzing: file.state == .analyzing,
+          isQueued: file.state == .queued,
+          isProcessing: file.state == .processing,
+          integratedLUFS: file.metrics?.integratedLUFS
+        )
+      }
+    }
+  #endif
 
   private func analyzeFiles(withIDs ids: Set<UUID>) async {
     let analyzer = self.analyzer
@@ -266,7 +421,9 @@ final class DropViewModel: ObservableObject {
   private func reevaluateCompletedFiles() {
     for index in files.indices {
       guard let metrics = files[index].metrics else { continue }
-      guard files[index].state != .analyzing && files[index].state != .queued else { continue }
+      guard files[index].state != .analyzing && files[index].state != .queued
+          && files[index].state != .processing
+      else { continue }
 
       let verdict = analyzer.evaluate(metrics: metrics, profile: selectedProfile)
       switch verdict {
@@ -331,9 +488,18 @@ final class DropViewModel: ObservableObject {
     }
   }
 
+  #if LUFSY_PRO
+    private func updateProcessingProgress(for id: UUID, progress: Double) {
+      guard let idx = files.firstIndex(where: { $0.id == id }) else { return }
+      guard files[idx].state == .processing else { return }
+      progressByID[id] = min(max(progress, 0), 0.99)
+      files[idx].showInlineProgress = true
+    }
+  #endif
+
   func stateIcon(for file: AnalyzedFile) -> String? {
     switch file.state {
-    case .queued, .analyzing:
+    case .queued, .analyzing, .processing:
       return nil
     case .passed:
       return "checkmark.circle.fill"

@@ -14,45 +14,27 @@ enum AppDependencies {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private var window: NSWindow?
-
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
+    styleMainWindowIfAvailable()
     AppDependencies.updateCoordinator.initializeUpdater()
-    showMainWindow()
     AppDependencies.updateCoordinator.performStartupCheckIfNeeded()
   }
 
   func application(_ application: NSApplication, open urls: [URL]) {
-    showMainWindow()
+    NSApp.activate(ignoringOtherApps: true)
+    styleMainWindowIfAvailable()
     DropViewModel.shared.handleDroppedURLs(urls)
   }
 
-  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    true
-  }
-
-  private func showMainWindow() {
-    if let window {
-      window.makeKeyAndOrderFront(nil)
-      NSApp.activate(ignoringOtherApps: true)
-      return
-    }
-
-    let hostingController = NSHostingController(rootView: ContentView())
-    let window = NSWindow(contentViewController: hostingController)
-    window.setContentSize(NSSize(width: 860, height: 520))
-    window.contentMinSize = NSSize(width: 640, height: 360)
+  private func styleMainWindowIfAvailable() {
+    guard let window = NSApp.windows.first else { return }
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     if #available(macOS 11.0, *) {
       window.toolbarStyle = .unified
     }
-    window.center()
-    window.makeKeyAndOrderFront(nil)
-
-    self.window = window
   }
 }
 
@@ -62,9 +44,16 @@ struct LufsyApp: App {
   @StateObject private var updateCoordinator = AppDependencies.updateCoordinator
 
   var body: some Scene {
+    WindowGroup {
+      ContentView()
+        .frame(minWidth: 640, minHeight: 360)
+    }
+
     Settings {
-      UpdatesSettingsView(updateCoordinator: updateCoordinator)
-        .frame(width: 480, height: 250)
+      VStack(alignment: .leading, spacing: 12) {
+        UpdatesSettingsView(updateCoordinator: updateCoordinator)
+      }
+      .frame(width: 480, height: 250)
     }
     .commands {
       CommandGroup(after: .appInfo) {
@@ -74,4 +63,5 @@ struct LufsyApp: App {
       }
     }
   }
+
 }

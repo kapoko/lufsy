@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import LufsyShared
 
 struct LoudnessMetrics: Equatable {
   let integratedLUFS: Double
@@ -139,14 +140,13 @@ final class LoudnessAnalyzer {
   }
 
   func analyze(url: URL, onProgress: ((Double?) -> Void)? = nil) throws -> LoudnessAnalysisResult {
-    let ffmpegPath = resolveFFmpegPath()
-    guard FileManager.default.fileExists(atPath: ffmpegPath) else {
+    guard let ffmpegCommand = resolveFFmpegCommand() else {
       throw LoudnessAnalyzerError.ffmpegNotFound
     }
 
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: ffmpegPath)
-    process.arguments = [
+    process.executableURL = URL(fileURLWithPath: ffmpegCommand.executable)
+    process.arguments = ffmpegCommand.arguments + [
       "-nostdin",
       "-hide_banner",
       "-threads", "0",
@@ -217,14 +217,13 @@ final class LoudnessAnalyzer {
   }
 
   private func probeAudioDetails(url: URL) throws -> (sampleRateHz: Int?, bitDepth: Int?) {
-    let ffmpegPath = resolveFFmpegPath()
-    guard FileManager.default.fileExists(atPath: ffmpegPath) else {
+    guard let ffmpegCommand = resolveFFmpegCommand() else {
       throw LoudnessAnalyzerError.ffmpegNotFound
     }
 
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: ffmpegPath)
-    process.arguments = [
+    process.executableURL = URL(fileURLWithPath: ffmpegCommand.executable)
+    process.arguments = ffmpegCommand.arguments + [
       "-hide_banner",
       "-nostdin",
       "-i", url.path,
@@ -419,43 +418,7 @@ final class LoudnessAnalyzer {
     return .pass
   }
 
-  private func resolveFFmpegPath() -> String {
-    let binary = preferredFFmpegBinaryName()
-    let currentDir = FileManager.default.currentDirectoryPath
-    let localResource = "\(currentDir)/Resources/\(binary)"
-    if FileManager.default.fileExists(atPath: localResource) {
-      return localResource
-    }
-
-    if let bundledPath = Bundle.main.path(forResource: binary, ofType: nil) {
-      return bundledPath
-    }
-
-    let executablePath = Bundle.main.executablePath ?? ""
-    let executableDir = URL(fileURLWithPath: executablePath).deletingLastPathComponent()
-    let bundleRelative = executableDir.appendingPathComponent("../Resources/\(binary)").path
-    if FileManager.default.fileExists(atPath: bundleRelative) {
-      return bundleRelative
-    }
-
-    return "/usr/local/bin/ffmpeg"
-  }
-
-  private func preferredFFmpegBinaryName() -> String {
-    let machine = currentMachineIdentifier()
-    if machine.contains("arm64") || machine.contains("aarch64") {
-      return "ffmpeg-arm64"
-    }
-    return "ffmpeg-x86_64"
-  }
-
-  private func currentMachineIdentifier() -> String {
-    var systemInfo = utsname()
-    uname(&systemInfo)
-
-    return Mirror(reflecting: systemInfo.machine).children.reduce(into: "") { result, element in
-      guard let value = element.value as? Int8, value != 0 else { return }
-      result.append(Character(UnicodeScalar(UInt8(value))))
-    }
+  private func resolveFFmpegCommand() -> (executable: String, arguments: [String])? {
+    FFmpegResolver.resolveExecutable(preferredBinaryName: FFmpegResolver.preferredBundledBinaryName())
   }
 }
