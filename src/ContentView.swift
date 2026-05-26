@@ -30,7 +30,11 @@ struct ContentView: View {
   @ObservedObject private var viewModel = DropViewModel.shared
   @State private var selection = Set<AnalyzedFile.ID>()
   @State private var showsNormInfo = false
-  @State private var showsRightSidebar = false
+  #if LUFSY_PRO
+    @State private var showsRightSidebar = true
+  #else
+    @State private var showsRightSidebar = false
+  #endif
   @State private var tableLayoutResetToken = UUID()
   @State private var sortOrder = [KeyPathComparator(\AnalyzedFile.fileName, order: .forward)]
   @AppStorage("showsLoudnessColumn") private var showsLoudnessColumn = true

@@ -305,7 +305,9 @@ final class DropViewModel: ObservableObject {
           isAnalyzing: file.state == .analyzing,
           isQueued: file.state == .queued,
           isProcessing: file.state == .processing,
-          integratedLUFS: file.metrics?.integratedLUFS
+          integratedLUFS: file.metrics?.integratedLUFS,
+          sampleRateHz: file.sampleRateHz,
+          bitDepth: file.bitDepth
         )
       }
     }
