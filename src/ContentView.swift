@@ -65,26 +65,16 @@ struct ContentView: View {
           Spacer()
         }
 
-        ToolbarItemGroup(placement: .primaryAction) {
-          Button {
-            showsNormInfo = true
-          } label: {
-            Label("About loudness norms", systemImage: "info.circle")
-              .imageScale(.medium)
-              .foregroundStyle(.secondary)
-          }
-          .labelStyle(.iconOnly)
-          .help("About loudness norms")
-          .accessibilityLabel("About loudness norms")
+        ToolbarItem(placement: .principal) {
+          toolbarInfoButton
+        }
 
-          Picker("Loudness Norm", selection: $viewModel.selectedProfile) {
-            ForEach(LoudnessProfile.allCases) { profile in
-              Text(profile.displayName).tag(profile)
-            }
-          }
-          .pickerStyle(.menu)
+        ToolbarItem(placement: .principal) {
+          toolbarNormPicker
+        }
 
-          #if LUFSY_PRO
+        #if LUFSY_PRO
+          ToolbarItem(placement: .principal) {
             LufsyProProcessToolbarButton(
               isProcessing: viewModel.isRenderingProPass,
               isEnabled: viewModel.canRender(for: selection),
@@ -92,18 +82,22 @@ struct ContentView: View {
               totalCount: viewModel.processingFilesTotal,
               action: { viewModel.renderSelectedFile(withIDs: selection) }
             )
-          #endif
+          }
+        #endif
 
+        ToolbarItem(placement: .primaryAction) {
           Button(action: openFiles) {
             Image(systemName: "plus")
           }
           .labelStyle(.iconOnly)
           .help("Add Files")
-
-          #if LUFSY_PRO
-            LufsyProSidebarToggleButton(isPresented: $showsRightSidebar)
-          #endif
         }
+
+        #if LUFSY_PRO
+          ToolbarItem(placement: .primaryAction) {
+            LufsyProSidebarToggleButton(isPresented: $showsRightSidebar)
+          }
+        #endif
       }
       .onDrop(of: [UTType.fileURL.identifier], isTargeted: $viewModel.isDragHovering) {
         providers in
@@ -169,6 +163,30 @@ struct ContentView: View {
       .ignoresSafeArea()
     }
   #endif
+
+  private var toolbarInfoButton: some View {
+    Button {
+      showsNormInfo = true
+    } label: {
+      Label("About loudness norms", systemImage: "info.circle")
+        .imageScale(.medium)
+        .foregroundStyle(.secondary)
+    }
+    .labelStyle(.iconOnly)
+    .help("About loudness norms")
+    .accessibilityLabel("About loudness norms")
+  }
+
+  private var toolbarNormPicker: some View {
+    Picker("Loudness Norm", selection: $viewModel.selectedProfile) {
+      ForEach(LoudnessProfile.allCases) { profile in
+        Text(profile.displayName).tag(profile)
+      }
+    }
+    .pickerStyle(.menu)
+    .labelsHidden()
+    .help("Select loudness norm")
+  }
 
   private var tableView: some View {
     Table(sortedFiles, selection: $selection, sortOrder: $sortOrder) {

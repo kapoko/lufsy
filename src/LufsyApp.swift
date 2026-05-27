@@ -2,6 +2,10 @@ import AppKit
 import SparkleUpdater
 import SwiftUI
 
+#if LUFSY_PRO
+  import LufsyPro
+#endif
+
 @MainActor
 enum AppDependencies {
   static let updateCoordinator = UpdateCoordinator(
@@ -35,6 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if #available(macOS 11.0, *) {
       window.toolbarStyle = .unified
     }
+
+    #if LUFSY_PRO
+      LufsyProAppHook.styleMainWindow(window)
+    #endif
   }
 }
 

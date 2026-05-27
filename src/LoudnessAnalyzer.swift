@@ -19,8 +19,9 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
   case ebuR128
   case atscA85
   case aribTrB32
-  case streaming14
-  case podcast16
+  case youtube14
+  case spotify14
+  case applePodcasts16
 
   var id: String { rawValue }
 
@@ -32,10 +33,12 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
       return "ATSC A/85"
     case .aribTrB32:
       return "ARIB TR-B32"
-    case .streaming14:
-      return "Streaming (YouTube/Spotify)"
-    case .podcast16:
-      return "Podcasts"
+    case .youtube14:
+      return "YouTube"
+    case .spotify14:
+      return "Spotify"
+    case .applePodcasts16:
+      return "Apple Podcasts"
     }
   }
 
@@ -47,10 +50,12 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
       return "ATSC A/85"
     case .aribTrB32:
       return "ARIB TR-B32"
-    case .streaming14:
-      return "Streaming"
-    case .podcast16:
-      return "Podcasts"
+    case .youtube14:
+      return "YouTube"
+    case .spotify14:
+      return "Spotify"
+    case .applePodcasts16:
+      return "Apple Podcasts"
     }
   }
 
@@ -62,9 +67,9 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
       return -24.0
     case .aribTrB32:
       return -24.0
-    case .streaming14:
+    case .youtube14, .spotify14:
       return -14.0
-    case .podcast16:
+    case .applePodcasts16:
       return -16.0
     }
   }
@@ -73,7 +78,7 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
     switch self {
     case .ebuR128, .atscA85:
       return 0.5
-    case .aribTrB32, .streaming14, .podcast16:
+    case .aribTrB32, .youtube14, .spotify14, .applePodcasts16:
       return 1.0
     }
   }
@@ -82,14 +87,14 @@ enum LoudnessProfile: String, CaseIterable, Identifiable {
     switch self {
     case .atscA85:
       return -2.0
-    case .ebuR128, .aribTrB32, .streaming14, .podcast16:
+    case .ebuR128, .aribTrB32, .youtube14, .spotify14, .applePodcasts16:
       return -1.0
     }
   }
 
   var maxLoudnessRangeLU: Double? {
     switch self {
-    case .streaming14, .podcast16:
+    case .youtube14, .spotify14, .applePodcasts16:
       return 12.0
     default:
       return nil
